@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zhuri"
+version = "0.1.0"
+description = "zhuri (逐日) — framework-free multi-agent orchestrator implementing the Deli_AutoResearch protocol"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "zhuri contributors" }]
+dependencies = [
+    "rich>=13.0",
+    "httpx>=0.27",
+    "tomli>=2.4.1; python_version < '3.11'",
+]
+
+# A9 / banned dependencies: NO agent frameworks may appear here.
+# (crewai, langgraph, langchain-agents, autogen, llama-index agents)
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+zhuri = "zhuri.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["zhuri*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["zhuri"]
+
+[tool.coverage.report]
+show_missing = true

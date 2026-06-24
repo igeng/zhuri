@@ -1,0 +1,53 @@
+# Example zhuri configuration (§10A).
+#
+# Copy to ~/.config/zhuri/config.toml (or ./.zhuri/config.toml, or point at it
+# with --config / ZHURI_CONFIG) and supply the API keys via environment vars.
+#
+# v1 ships exactly one provider type: openai_compat. The deepseek/qwen/kimi
+# presets fill in base_url + default auth env for you.
+
+# ----- providers: what model endpoints exist (each with its own key) ---------
+[providers.deepseek]
+type     = "openai_compat"
+base_url = "https://api.deepseek.com/v1"
+api_key  = "${DEEPSEEK_API_KEY}"
+models   = ["deepseek-chat", "deepseek-reasoner"]
+
+[providers.qwen]
+type     = "openai_compat"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key  = "${QWEN_API_KEY}"
+models   = ["qwen-max", "qwen-plus"]
+
+[providers.kimi]
+type     = "openai_compat"
+base_url = "https://api.moonshot.cn/v1"
+api_key  = "${MOONSHOT_API_KEY}"
+models   = ["kimi-k2-0905-preview", "moonshot-v1-128k"]
+
+# ----- agents: which provider/model each role uses ---------------------------
+[agents.default]                 # fallback for any unset role
+provider = "deepseek"
+model    = "deepseek-chat"
+
+[agents.orchestrator]            # stable & cheap
+provider = "deepseek"
+model    = "deepseek-chat"
+
+[agents.spec]                    # prompt → task_spec synthesis
+provider = "deepseek"
+model    = "deepseek-reasoner"
+
+[agents.work]                    # strongest model for doing the work
+provider = "qwen"
+model    = "qwen-max"
+
+[agents.review]                  # different vendor on purpose; uses a model pool
+provider = "kimi"
+models   = ["kimi-k2-0905-preview", "moonshot-v1-128k"]
+
+# Optional sub-role overrides; inherit from the parent role if omitted.
+[agents.subagent.verification]
+provider = "deepseek"
+model    = "deepseek-reasoner"
+# [agents.subagent.nudge]   # unset → inherits from [agents.work] / [agents.default]

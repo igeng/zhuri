@@ -7,7 +7,7 @@ import pytest
 from zhuri import cli
 from zhuri.orchestrator.loop import RunOutcome
 from zhuri.providers.fake import FakeProvider
-from zhuri.repl import Repl, parse_command
+from zhuri.repl_core import Repl, parse_command
 from zhuri.providers.registry import Registry
 from zhuri.config import load_config_str
 from zhuri.state.store import TaskStore
@@ -155,7 +155,7 @@ def test_repl_new_task_and_status(tmp_path, monkeypatch, capsys):
 def test_repl_foreground_escalates_and_stops(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     # raise the bound so the escalate threshold (4 stalls) is reachable
-    monkeypatch.setattr("zhuri.repl.FOREGROUND_MAX_ITERS", 6)
+    monkeypatch.setattr("zhuri.repl_core.FOREGROUND_MAX_ITERS", 6)
     reg = Registry(load_config_str(CFG_TEXT), factory=_fake_factory())
     out_lines = []
     repl = Repl(registry=reg, runner=_stall_runner, out=out_lines.append)

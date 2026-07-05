@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from pathlib import Path
 
 from .config import BANNED_DEPS, Config, ConfigError, config_path, load_config
 
@@ -72,14 +73,29 @@ def _all_roles(cfg: Config) -> list[str]:
 
 
 def _banned_present() -> list[str]:
-    """A9: ensure no banned agent-framework dependency is importable/declared."""
-    found = []
-    import importlib.util
+    """A9: ensure no banned agent-framework dependency is declared in pyproject.toml.
 
-    for dep in BANNED_DEPS:
-        mod = dep.replace("-", "_")
-        if importlib.util.find_spec(mod) is not None:
-            found.append(f"banned dependency present: {dep}")
+    Checks the *declared* dependencies, not the installed environment — a developer
+    may have crewai/langgraph/etc. installed for unrelated projects.
+    """
+    import tomllib as _tomllib
+
+    found: list[str] = []
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    if not pyproject.exists():
+        return found
+    try:
+        data = _tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:
+        return found
+    deps: list[str] = data.get("project", {}).get("dependencies", [])
+    dev_deps: list[str] = (
+        data.get("project", {}).get("optional-dependencies", {}).get("dev", [])
+    )
+    joined = (" ".join(deps) + " " + " ".join(dev_deps)).lower()
+    for banned in BANNED_DEPS:
+        if banned.lower() in joined:
+            found.append(f"banned dependency declared: {banned}")
     return found
 
 

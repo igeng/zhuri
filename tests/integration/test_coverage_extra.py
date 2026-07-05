@@ -94,7 +94,7 @@ def test_config_path_home_fallback(tmp_path, monkeypatch):
     monkeypatch.delenv("ZHURI_CONFIG", raising=False)
     monkeypatch.chdir(tmp_path)  # no ./.zhuri/config.toml here
     p = config_path()
-    assert p.name == "config.toml" and ".config/zhuri" in str(p)
+    assert p.name == "config.toml" and ".config" in str(p) and "zhuri" in str(p)
 
 
 def test_subprocess_runner_with_fake_provider(tmp_path, monkeypatch):

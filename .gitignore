@@ -1,0 +1,46 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Testing & coverage
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# zhuri runtime state (generated at runtime)
+state/
+logs/
+escalations.jsonl
+reply.flag
+
+# Claude Code local settings (personal)
+.claude/settings.local.json
+
+# Environment files
+.env
+.env.local
+zhuri.egg-info/

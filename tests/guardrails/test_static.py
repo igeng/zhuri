@@ -29,7 +29,7 @@ def test_no_source_file_over_300_lines():
 
 def test_no_banned_agent_framework_in_pyproject():
     """A9: no agent-framework dependency declared."""
-    data = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     deps = data["project"].get("dependencies", [])
     deps += data["project"].get("optional-dependencies", {}).get("dev", [])
     joined = " ".join(deps).lower()

@@ -61,7 +61,7 @@ perspectives and structural diversity.
 
 ```bash
 # Clone or download the project
-git clone <your-repo-url>
+git clone git@github.com:igeng/zhuri.git
 cd zhuri
 
 # Install zhuri as a console script (editable mode for development)
@@ -92,7 +92,12 @@ mkdir -p ~/.config/zhuri
 cp examples/config.toml ~/.config/zhuri/config.toml
 ```
 
-Edit the config file and set your API key(s). For example, with DeepSeek:
+Edit the config file and set your API key(s).
+
+> ⚠️ **Security: never hardcode real API keys in config files.**
+> Always use `${ENV_VAR}` syntax and keep real keys only in your shell profile.
+
+For example, with DeepSeek:
 
 ```toml
 [providers.deepseek]
@@ -106,10 +111,19 @@ provider = "deepseek"
 model    = "deepseek-chat"
 ```
 
-Then set the environment variable:
+Then set the environment variables in your shell profile
+(`~/.bashrc` / `~/.zshrc` / `~/.bash_profile`):
 
 ```bash
-export DEEPSEEK_API_KEY="your-key-here"
+# Keep real keys ONLY in environment variables — never in files
+export DEEPSEEK_API_KEY="sk-your-deepseek-key"
+export QWEN_API_KEY="sk-your-qwen-key"
+export MOONSHOT_API_KEY="sk-your-moonshot-key"
+```
+
+Reload your profile:
+```bash
+source ~/.bashrc    # or your respective profile file
 ```
 
 Validate the configuration:

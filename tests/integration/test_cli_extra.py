@@ -9,7 +9,8 @@ from zhuri.orchestrator import diversity, loop
 from zhuri.orchestrator.loop import RunOutcome
 from zhuri.providers.fake import FakeProvider
 from zhuri.providers.registry import Registry
-from zhuri.repl import Repl
+from zhuri.repl_core import Repl
+from zhuri.cli_dispatch import _status
 from zhuri.state.models import Direction, Progress
 from zhuri.state.store import TaskStore
 
@@ -62,7 +63,7 @@ def test_status_watch_cycles(tmp_path, capsys):
     capsys.readouterr()  # discard scaffold output
     args = SimpleNamespace(base_dir=str(base), json=False, watch=True)
     sleeps = []
-    rc = cli._status(args, sleep=sleeps.append, cycles=3)
+    rc = _status(args, sleep=sleeps.append, cycles=3)
     out = capsys.readouterr().out
     assert rc == 0
     assert out.count("task-a") == 3  # rendered once per cycle

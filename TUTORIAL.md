@@ -17,7 +17,8 @@
 9. [看门狗配置](#9-看门狗配置)
 10. [高级配置：多提供商与模型池](#10-高级配置多提供商与模型池)
 11. [典型工作流示例](#11-典型工作流示例)
-12. [常见问题](#12-常见问题)
+12. [论文写作任务包（Sub-skill 系统）](#12-论文写作任务包sub-skill-系统)
+13. [常见问题](#13-常见问题)
 
 ---
 
@@ -232,24 +233,43 @@ zhuri "研究大模型 agent 强化学习" --yes --synthesize --max-iters 5
 zhuri "写一篇关于 Transformer 的论文" --yes --detach
 ```
 
-### 迭代过程输出
+### 迭代过程输出（实时监控）
+
+Entry A 启动后会自动进入**监控模式**（B1 安全：纯展示、不交互），实时展示运行状态：
 
 ```
-launched task: .zhuri/tasks/task-000122b967c7
-running in foreground (B1: zero-interaction)…
-[iter 1] axis=framing → gain status=running stale=0
-[iter 2] axis=data-source → gain status=running stale=0
-[iter 3] axis=method → stall status=running stale=1
-done: 3 iterations, 25 findings total
-artifacts:
-  state : .zhuri/tasks/task-000122b967c7/state/
-  logs  : .zhuri/tasks/task-000122b967c7/logs/
+$ zhuri "研究xxx综述" --yes
+
+[zhuri] task_id=task-001  synthesizing spec...
+[spec]  task_spec.md done (3.2s)
+[orch]  launching orchestrator...
+  [running ] iter=1  findings=3   gain
+  [running ] iter=2  findings=7   gain
+  [pivoting] iter=3  findings=7   stale=2    ← 触发结构转向
+  [running ] iter=4  findings=12  gain
+  [running ] iter=5  findings=18  gain
+  [running ] iter=6  findings=24  gain
+  [done    ] iter=7  findings=42  gain
+  [work] round 5/15  850 chars  2340ms  findings_this_round=6
+  [orch] tick  task=task-001  iteration=5
+  [work] ⚠ stall signal — model ended on a question
+  [zhuri] task-001 DONE  7 iterations  42 findings
 ```
 
 每行含义：
-- `axis=framing`：本轮探索的结构轴
-- `gain`：本轮有新发现 / `stall`：本轮无新发现
-- `stale=N`：连续停滞次数（≥2 触发结构转向，≥4 升级人工干预）
+- `iter=N`：当前迭代轮次
+- `findings=N`：累计发现的 insight 数量
+- `gain`：本轮有新发现 / `stale=N`：连续停滞 N 次（≥2 触发结构转向，≥4 升级）
+- `[work] round N/15`：工作代理内部的 LLM 调用轮次
+- `[orch] tick`：编排器的调度心跳
+
+### verbose 模式（完整日志）
+
+```bash
+zhuri "任务" --yes -v    # 所有 LLM 调用、耗时、日志详情输出到 stderr
+```
+
+在 REPL 中也可以通过 `/config verbose on` 随时开启。
 
 ---
 
@@ -818,7 +838,63 @@ zhuri
 
 ---
 
-## 12. 常见问题
+## 12. 论文写作任务包（Sub-skill 系统）
+
+zhuri 内置了可扩展的任务包系统（`tasks/`），首个完整实现是**论文写作包**，包含
+5 个由上游协议定义的子技能。
+
+### 子技能概览
+
+| 子技能 | 方向键 | 工作流 |
+|--------|--------|--------|
+| **文献调研** | `subskill:literature` | 4 阶段：Recall → LQS 多维评分 → A/B/C/D 深度分类 → 会议升级 |
+| **论文结构** | `subskill:structure` | 章节架构 + 段落逻辑模式 + MECE 分类法 + 分层声明 |
+| **实验设计** | `subskill:experiment` | 设计(假设)→执行(API/GPU)→迭代(≤5次)→报告(JSON) |
+| **学术图表** | `subskill:figures` | Booktabs 表格 + 矢量图 + 质量检查清单 + 学术调色板 |
+| **同行评审** | `subskill:review` | 5 个评审 persona 独立评分 → 中位数 → 弱点路由回子技能 |
+
+### 自动反馈闭环
+
+评审发现的弱点会**自动路由**到对应子技能：
+
+```
+评审 agent 产出 → 弱点路由表 → 注入 direction → 下一轮 work agent
+                                          ↓
+"缺少实验"      → subskill:experiment  → 实验设计 skill
+"引用不足"      → subskill:literature  → 文献调研 skill
+"结构不清"      → subskill:structure   → 论文结构 skill
+```
+
+### LQS 评分体系（文献调研专用）
+
+文献调研使用 5 维加权评分自动筛选论文：
+
+| 维度 | 权重 | 评分规则 |
+|------|------|---------|
+| 时效性 | 30% | ≤6个月=10分, ≤1年=8分 |
+| 引用影响力 | 25% | cites/月 ≥50=10分 |
+| 发表场合 | 20% | 顶会=10分, 强会=7分 |
+| 机构 | 10% | 顶尖实验室=10分 |
+| 录用状态 | 15% | 已录用=10分 |
+
+LQS≥7.0 必引，5.0-7.0 条件引用，<5.0 丢弃。
+
+### 扩展自定义任务包
+
+实现 `tasks/base.py` 中的 `TaskPack` 和 `SubSkill` 接口即可创建新的任务包：
+
+```python
+from zhuri.tasks.base import TaskPack, SubSkill, SubSkillContext
+
+class MyCodeReviewPack(TaskPack):
+    name = "code_review"
+    sub_skills = {"security": SecurityReviewSkill(), ...}
+    ...
+```
+
+---
+
+## 13. 常见问题
 
 ### Q: 直接模式和迭代模式该如何选择？
 

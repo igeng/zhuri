@@ -46,6 +46,35 @@ research, analysis, or generation steps is a good fit:
 mode** is best for complex, open-ended tasks that benefit from multiple
 perspectives and structural diversity.
 
+### Live monitoring & logging
+
+Entry A (`zhuri "prompt" --yes`) now shows **real-time progress** — iteration
+count, findings, stall signals, and structural pivots — without requiring user
+interaction (B1-safe). Add `-v` / `--verbose` for full log output to stderr.
+
+```bash
+zhuri "prompt" --yes -v     # full detail: LLM calls, timings, token usage
+zhuri "prompt" --yes         # one-line-per-iteration summary
+zhuri "prompt" --yes --detach # run in background (no monitor)
+```
+
+### Built-in task packs
+
+`zhuri` ships with a pluggable task-pack system (`tasks/`). The first pack is
+**paper-writing**, with 5 sub-skills:
+
+| Sub-skill | Description |
+|-----------|-------------|
+| **Literature Survey** | 4-stage pipeline: Recall → LQS Scoring → A/B/C/D Classification → Venue Upgrade |
+| **Structure & Logic** | Chapter architecture, paragraph patterns, MECE taxonomy, hedged claims |
+| **Experiment Design** | Design → Execute(API/GPU) → Iterate(≤5) → Report(JSON) |
+| **Figures & Tables** | Booktabs tables, vector figures, quality checklist, academic palette |
+| **Peer Review** | 5 reviewer personas, median scoring, anti-inflation rules |
+
+Each sub-skill encodes expert workflows directly into LLM prompts. The
+orchestrator automatically routes reviewer-identified weaknesses to the
+appropriate sub-skill. See [`SPEC-TODO.md`](./SPEC-TODO.md) for the roadmap.
+
 ---
 
 ## Quick Start (5 minutes)

@@ -116,6 +116,7 @@ async def run_work_async(
     while rounds < max_rounds and clock() < deadline:
         rounds += 1
         model = registry.model_for_round("work", rounds)
+        round_start = clock()
         logger.info("llm_request", detail=f"round={rounds} model={model}")
         result = await provider.complete(
             system=prompt.system,
@@ -123,12 +124,19 @@ async def run_work_async(
             model=model,
             max_tokens=1024,
         )
-        logger.info("llm_response", detail=f"round={rounds} chars={len(result.text)}")
+        elapsed = round((clock() - round_start) * 1000)
+        logger.info("llm_response",
+                     detail=f"round={rounds} chars={len(result.text)}",
+                     duration_ms=elapsed)
+        print(f"  [work] round {rounds}/{max_rounds}  {len(result.text)} chars  "
+              f"{elapsed}ms  findings_this_round={len(extract_findings(result.text, iteration))}",
+              flush=True)
         # B1: a work-path answer ending on a question is a stall signal.
         if result.ends_with_question():
             stalled = True
             stopped = "question_stall"
             logger.decision("question_stall", detail="model ended on a question")
+            print("  [work] ⚠ stall signal — model ended on a question", flush=True)
             break
         for finding in extract_findings(result.text, iteration):
             store.append_finding(finding)

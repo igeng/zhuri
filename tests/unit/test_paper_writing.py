@@ -8,13 +8,36 @@ from zhuri.tasks.paper_writing.subskills import literature, review, structure
 
 def _good_state(score=8.6, prev=8.0):
     return {
-        "literature": {"references": 30, "hallucinated": 0},
-        "experiment": {"has_experiments": True, "results": True},
-        "structure": {"sections": 7, "max_section_lines": 200},
-        "figures": {"figures": 2, "tables": 1, "error_bars": True, "has_results": True},
+        "literature": {
+            "references": 30, "hallucinated": 0,
+            "citations": 90, "within_1yr_pct": 45, "accepted_pct": 35,
+            "arxiv_only_pct": 50, "verification_rate": 85,
+            "taxonomy_cells_missing_refs": 0,
+        },
+        "experiment": {
+            "has_experiments": True, "results": True,
+            "hypothesis_preregistered": True, "statistical_test_reported": True,
+            "trials": 5, "has_std": True,
+            "ceiling_effect": False, "floor_effect": False,
+            "links_to_claim": True, "has_results": True,
+        },
+        "structure": {
+            "sections": 7, "max_section_lines": 200,
+            "compile_errors": 0, "undefined_refs": 0,
+            "abstract_conclusion_aligned": True,
+            "inter_section_transitions": True,
+            "critical_assessment": True,
+            "formal_claims": 2, "terminology_consistent": True,
+        },
+        "figures": {
+            "figures": 8, "tables": 12, "error_bars": True, "has_results": True,
+            "booktabs_format": True, "captions_contain_conclusion": True,
+            "all_referenced": True, "nontrivial_insight": True,
+        },
         "review": {
             "score": score, "phase_target": 8.5, "pdf_compiles": True,
             "prev_score": prev, "version_bumped": True, "snapshot_saved": True,
+            "regressed_weaknesses": [],
         },
     }
 
@@ -27,7 +50,7 @@ def test_gates_pure_and_pass():
 
 def test_gate5_blocks_when_subgate_fails():
     state = _good_state()
-    state["experiment"]["has_experiments"] = False
+    state["experiment"]["hypothesis_preregistered"] = False
     passed, reasons = gates.gate_final_review(state)
     assert not passed
     assert any("experiment" in r for r in reasons)

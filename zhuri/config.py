@@ -83,24 +83,36 @@ class EffectiveAgent:
         }
 
 
-def _interpolate(value, *, strict: bool):
-    """Recursively expand ``${VAR}`` in strings."""
+def _resolve_env(value):
+    """Recursively expand ``${VAR}`` — raises ConfigError on missing vars."""
     if isinstance(value, str):
         def repl(match: re.Match) -> str:
             name = match.group(1)
             if name not in os.environ:
-                if strict:
-                    raise ConfigError(
-                        f"environment variable {name} is not set", exit_code=3
-                    )
-                return ""
+                raise ConfigError(
+                    f"environment variable {name} is not set", exit_code=3
+                )
             return os.environ[name]
 
         return _ENV_RE.sub(repl, value)
     if isinstance(value, dict):
-        return {k: _interpolate(v, strict=strict) for k, v in value.items()}
+        return {k: _resolve_env(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [_interpolate(v, strict=strict) for v in value]
+        return [_resolve_env(v) for v in value]
+    return value
+
+
+def _interpolate_lenient(value):
+    """Recursively expand ``${VAR}`` — missing vars silently become ``""``."""
+    if isinstance(value, str):
+        def repl(match: re.Match) -> str:
+            name = match.group(1)
+            return os.environ.get(name, "")
+        return _ENV_RE.sub(repl, value)
+    if isinstance(value, dict):
+        return {k: _interpolate_lenient(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_interpolate_lenient(v) for v in value]
     return value
 
 
@@ -117,7 +129,7 @@ class Config:
     def provider_base_url(self, name: str) -> str:
         prov = self.providers.get(name, {})
         if prov.get("base_url"):
-            return _interpolate(prov["base_url"], strict=False)
+            return _interpolate_lenient(prov["base_url"])
         if name in PRESETS:
             return PRESETS[name]["base_url"]
         return ""
@@ -131,7 +143,7 @@ class Config:
         if raw is not None:
             m = _ENV_RE.fullmatch(raw.strip()) if isinstance(raw, str) else None
             source = f"${{{m.group(1)}}}" if m else "inline"
-            return _interpolate(raw, strict=True), source
+            return _resolve_env(raw), source
         if name in PRESETS:
             env = PRESETS[name]["auth_env"]
             if env in os.environ:

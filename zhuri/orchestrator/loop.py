@@ -10,6 +10,7 @@ The orchestrator may run as the current session or a durable cron. Each tick:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,8 +75,52 @@ def _escalate(base_dir: Path, store: TaskStore, detail: str) -> None:
         "reply_hook": "file:" + str(base_dir / "reply.flag"),
     }
     path = base_dir / "escalations.jsonl"
-    with open(path, "a", encoding="utf-8") as fh:
+    # Atomic append via temp + rename (mirrors TaskStore convention).
+    tmp = path.with_name(f".{path.name}.{ids.pid()}.{ids.new_id()}.tmp")
+    # Read existing lines, append, write atomically.
+    existing = ""
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(existing)
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
+def _route_review_weaknesses(store: TaskStore, logger: JsonlLogger) -> list[str]:
+    """Read review outcome from state/ and return weakness-route suggestions.
+
+    Looks for ``review_outcome.json`` in the task state directory.  If found,
+    extracts each weakness's ``route_to`` field and logs it as a decision so the
+    orchestrator can inject it as the next direction.  This is the feedback
+    loop described in §SPEC-TODO §二.
+    """
+    import json as _json
+
+    review_path = store.state_dir / "review_outcome.json"
+    if not review_path.exists():
+        return []
+
+    try:
+        review = _json.loads(review_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    suggestions: list[str] = []
+    for reviewer in review.get("reviewers", []):
+        for w in reviewer.get("weaknesses", []):
+            route = w.get("route_to", "").strip().lower()
+            severity = w.get("severity", "Minor")
+            if route and severity == "Major":
+                suggestions.append(f"subskill:{route}")
+                logger.decision(
+                    "weakness_routed",
+                    detail=f"severity={severity} route={route} "
+                    f"weakness={w.get('text', '')[:120]}"
+                )
+    return suggestions
 
 
 def tick_task(
@@ -96,8 +141,17 @@ def tick_task(
 
     tried = store.read_directions()
     iteration = progress.iteration + 1
+
+    # ---------- feedback loop: review weakness → sub-skill direction ----------
+    weakness_directions = _route_review_weaknesses(store, logger)
+    direction_override = weakness_directions[0] if weakness_directions else None
+    # --------------------------------------------------------------------------
+
     candidate = diversity.propose_direction(
-        tried, iteration=iteration, base_goal=_base_goal(store)
+        tried,
+        iteration=iteration,
+        base_goal=_base_goal(store),
+        override=direction_override,
     )
     if stall.needs_fresh_direction(progress):
         logger.decision("fresh_direction", detail=f"axis={candidate.structural_axis}")
@@ -146,11 +200,16 @@ def tick(
     base = Path(base_dir)
     runner = runner or subprocess_runner
     decisions = []
-    for task_dir in discover_tasks(base):
+    tasks = discover_tasks(base)
+    for task_dir in tasks:
         store = TaskStore(task_dir)
         store.ensure_dirs()
         # B3: orchestrator reports alive first.
         store.touch_last_seen("orchestrator")
         logger = JsonlLogger(store.logs_dir, "orchestrator")
+        progress = store.read_progress()
+        iteration = (progress.iteration + 1) if progress else 1
+        print(f"  [orch] tick  task={task_dir.name}  iteration={iteration}",
+              flush=True)
         decisions.append(tick_task(base, task_dir, runner=runner, logger=logger))
     return decisions

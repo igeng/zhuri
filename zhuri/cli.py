@@ -104,8 +104,7 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
         spawn(cmd, detach=True)
         print(f"launched (detached): {task_dir}")
         return 0
-    entry.run_orchestrator(base, runner=runner, max_iters=args.max_iters,
-                           once=args.once)
+    _run_with_monitor(base, runner=runner, max_iters=args.max_iters, once=args.once)
     if args.synthesize:
         from .agents.synthesize import synthesize_document
         doc = synthesize_document(task_dir, registry)
@@ -114,6 +113,62 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
             print(doc)
     print(f"task completed at {task_dir}")
     return 0
+
+
+def _run_with_monitor(base: Path, *, runner=None, max_iters=None, once=False,
+                      poll_seconds: float = 2.0) -> None:
+    """Run orchestrator with live status output (read-only, B1-safe).
+
+    Spawns the orchestrator in a background thread and polls task progress
+    every *poll_seconds*, printing one summary line per tick.  This is a
+    non-interactive monitor — it never reads user input.
+    """
+    import threading
+    import time as _time
+
+    from . import entry
+    from .orchestrator.loop import discover_tasks
+    from .state.store import TaskStore
+
+    done = threading.Event()
+
+    def _run() -> None:
+        try:
+            entry.run_orchestrator(base, runner=runner, max_iters=max_iters,
+                                   once=once)
+        finally:
+            done.set()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    seen_tasks: set[str] = set()
+    while not done.is_set():
+        _time.sleep(poll_seconds)
+        tasks = discover_tasks(base)
+        for task_dir in tasks:
+            store = TaskStore(task_dir)
+            prog = store.read_progress()
+            if prog is None:
+                continue
+            # Only print new tasks or changed iterations.
+            key = f"{task_dir.name}:{prog.iteration}:{prog.status}"
+            if key not in seen_tasks:
+                seen_tasks.add(key)
+                flag = "gain" if prog.stale_count == 0 else f"stale={prog.stale_count}"
+                print(f"  [{prog.status:<8}] iter={prog.iteration}  "
+                      f"findings={prog.total_findings}  {flag}", flush=True)
+
+    t.join(timeout=5)
+
+    # Final summary
+    for task_dir in discover_tasks(base):
+        store = TaskStore(task_dir)
+        prog = store.read_progress()
+        if prog:
+            findings = len(store.read_findings())
+            print(f"  [zhuri] {task_dir.name}  DONE  "
+                  f"iter={prog.iteration}  findings={findings}", flush=True)
 
 
 def _direct_mode(task_dir: Path, prompt: str, registry) -> int:

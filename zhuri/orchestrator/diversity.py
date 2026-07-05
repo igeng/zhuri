@@ -58,9 +58,25 @@ def perturbation(axis: str, base_goal: str) -> str:
 
 
 def propose_direction(
-    tried: list[Direction], *, iteration: int, base_goal: str
+    tried: list[Direction],
+    *,
+    iteration: int,
+    base_goal: str,
+    override: str | None = None,
 ) -> Direction:
-    """Propose a fresh, structurally-diverse direction for the next iteration."""
+    """Propose a fresh, structurally-diverse direction for the next iteration.
+
+    If *override* is given (e.g. from a review→weakness→subskill feedback
+    loop), it becomes the direction and the axis is set to ``"review_feedback"``,
+    short-circuiting the normal axis rotation.
+    """
+    if override:
+        return Direction(
+            iteration=iteration,
+            direction=override,
+            structural_axis="review_feedback",
+            result="stall",
+        )
     axis = next_axis(tried)
     return Direction(
         iteration=iteration,

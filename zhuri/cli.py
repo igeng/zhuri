@@ -67,6 +67,8 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
     p.add_argument("--synthesize", action="store_true",
                    help="produce a final document after iterations complete")
     p.add_argument("--max-iters", type=int, default=None)
+    p.add_argument("--interval", type=float, default=5.0,
+                   help="seconds between orchestrator ticks (default: 5s; cron mode: 2h)")
     p.add_argument("--once", action="store_true")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="enable real-time log output to stderr")
@@ -104,7 +106,8 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
         spawn(cmd, detach=True)
         print(f"launched (detached): {task_dir}")
         return 0
-    _run_with_monitor(base, runner=runner, max_iters=args.max_iters, once=args.once)
+    _run_with_monitor(base, runner=runner, max_iters=args.max_iters,
+                      once=args.once, interval_seconds=args.interval)
     if args.synthesize:
         from .agents.synthesize import synthesize_document
         doc = synthesize_document(task_dir, registry)
@@ -116,12 +119,14 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
 
 
 def _run_with_monitor(base: Path, *, runner=None, max_iters=None, once=False,
-                      poll_seconds: float = 2.0) -> None:
+                      poll_seconds: float = 2.0,
+                      interval_seconds: float = 5.0) -> None:
     """Run orchestrator with live status output (read-only, B1-safe).
 
     Spawns the orchestrator in a background thread and polls task progress
-    every *poll_seconds*, printing one summary line per tick.  This is a
-    non-interactive monitor — it never reads user input.
+    every *poll_seconds*, printing one summary line per tick.  Uses a short
+    *interval_seconds* (default 5s) between ticks since this is foreground
+    execution — unlike ``zhuri run`` which defaults to 2h for cron usage.
     """
     import threading
     import time as _time
@@ -135,7 +140,7 @@ def _run_with_monitor(base: Path, *, runner=None, max_iters=None, once=False,
     def _run() -> None:
         try:
             entry.run_orchestrator(base, runner=runner, max_iters=max_iters,
-                                   once=once)
+                                   once=once, interval_seconds=interval_seconds)
         finally:
             done.set()
 

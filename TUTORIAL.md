@@ -205,19 +205,63 @@ zhuri "分析 React 和 Vue 的优劣对比" --direct --yes --dir ~/projects/res
 
 ## 启动方式速查
 
-zhuri 共有 5 种启动方式，按场景选择：
+zhuri 共有 5 种启动方式。**最终目标都是拿到合并后的综述文档 `deliverable.md`。**
 
-| 方式 | 命令 | 确认 | 终端输出 | 适用场景 |
-|------|------|------|---------|---------|
-| **REPL 交互** | `zhuri` → `❯ 粘贴任务` | spec + y/N | 实时监控 | 想先看 spec，或管理多任务 |
-| **直接跑** | `zhuri "任务"` | spec + y/N | 实时监控 | 想确认方向后再跑 |
-| **跳过确认** | `zhuri "任务" --yes` | 无 | 实时监控 | 信任 zhuri，不想多一步 |
-| **后台运行** | `zhuri "任务" --yes --detach` | 无 | `zhuri status` 查看 | 跑几小时以上，不想占终端 |
-| **后台+综合** | `zhuri "任务" --yes --detach --synthesize` | 无 | `zhuri status` 查看 | 跑完直接出 deliverable.md |
+| 方式 | 启动命令 | 确认 | 如何拿到最终文档 |
+|------|---------|------|-----------------|
+| **REPL 交互** | `zhuri` → `❯ 粘贴任务` | spec + y/N | 跑完后在 REPL 中 `/synthesize` |
+| **直接跑** | `zhuri "任务"` | spec + y/N | 跑完后 `zhuri synthesize .zhuri/tasks/<task-id>` |
+| **跳过确认** | `zhuri "任务" --yes` | 无 | 跑完后 `zhuri synthesize .zhuri/tasks/<task-id>` |
+| **后台运行** | `zhuri "任务" --yes --detach` | 无 | `zhuri status` 等 done → `zhuri synthesize <task-dir>` |
+| **后台+综合** | `zhuri "任务" --yes --detach --synthesize` | 无 | 自动合成，直接看 `state/deliverable.md` |
 
-`--yes` 跳过 spec 确认，B1 零交互生效。不加 `--yes` 会显示一次 spec 供确认（B1 豁免）。
-`--detach` 后台运行，终端立即返回，用 `zhuri status <目录>` 查看进度。
-`--synthesize` 跑完后自动将所有 findings 合并为 `deliverable.md`。
+**推荐新手用方式 1 或 2**（能看到过程、有确认步骤）。**熟练后用方式 5**（全自动，最终文档直接到手）。
+
+### flag 说明
+
+| flag | 效果 |
+|------|------|
+| 无 flag | 显示 spec 供一次性确认（B1 豁免），然后前台监控运行 |
+| `--yes` | 跳过确认，直接开始（零交互） |
+| `--detach` | 后台运行，终端立即返回 |
+| `--synthesize` | 所有迭代完成后，自动合并 findings 为最终文档 |
+| `--max-iters N` | 限制最大迭代轮数 |
+| `--interval N` | 编排器 tick 间隔秒数（默认 5s） |
+| `-v` / `--verbose` | 输出完整 LLM 调用日志 |
+
+### 如何拿到最终文档
+
+无论哪种启动方式，最终产物路径相同：
+
+```
+<工作目录>/.zhuri/tasks/<task-id>/state/
+├── task_spec.md          # 任务规格
+├── findings.jsonl         # 所有中间发现
+├── deliverable.md         # ★ 最终综述文档
+└── progress.json          # 运行状态
+```
+
+**手动合成**（方式 1-4 跑完后执行）：
+
+```bash
+# 1. 找到 task-id
+ls .zhuri/tasks/
+
+# 2. 合并 findings 为综述文档
+zhuri synthesize .zhuri/tasks/task-0001baf93b2d
+
+# 3. 查看结果
+cat .zhuri/tasks/task-0001baf93b2d/state/deliverable.md
+```
+
+**REPL 内合成**（方式 1）：
+
+```
+❯ /synthesize                    # 合并最近一个任务
+❯ /synthesize task-0001baf93b2d  # 合并指定任务
+```
+
+**自动合成**（方式 5）：加 `--synthesize`，跑完自动调用，无需手动操作。
 
 ---
 

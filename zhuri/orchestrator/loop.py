@@ -47,14 +47,19 @@ def discover_tasks(base_dir: str | Path) -> list[Path]:
 
 def subprocess_runner(task_dir: Path, direction: str) -> RunOutcome:
     """Default runner: spawn ``zhuri work`` as a real subprocess (B4 isolation)."""
-    before = len(TaskStore(task_dir).read_findings())
+    store = TaskStore(task_dir)
+    before = len(store.read_findings())
+    short_dir = f"{direction[:60]}..." if len(direction) > 60 else direction
+    print(f"  [orch] > spawning work agent for {task_dir.name}  "
+          f"direction={short_dir!r}", flush=True)
     result = proc.run(
         [sys.executable, "-m", "zhuri", "work", str(task_dir), "--direction", direction],
         timeout=60 * 35,
     )
-    store = TaskStore(task_dir)
     after = len(store.read_findings())
     new = after - before
+    print(f"  [orch] ok  work agent done  rc={result.returncode}  "
+          f"new_findings={new}", flush=True)
     return RunOutcome(new_findings=new, metric=float(new))
 
 

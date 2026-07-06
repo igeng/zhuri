@@ -117,32 +117,46 @@ async def run_work_async(
         rounds += 1
         model = registry.model_for_round("work", rounds)
         round_start = clock()
+        total_elapsed = round(round_start - start)
         logger.info("llm_request", detail=f"round={rounds} model={model}")
-        result = await provider.complete(
-            system=prompt.system,
-            messages=messages,
-            model=model,
-            max_tokens=1024,
-        )
+        print(f"  [work] > round {rounds}/{max_rounds}  sending to {model}  "
+              f"(elapsed={total_elapsed}s)...", flush=True)
+        try:
+            result = await provider.complete(
+                system=prompt.system,
+                messages=messages,
+                model=model,
+                max_tokens=1024,
+            )
+        except Exception as exc:
+            elapsed_ms = round((clock() - round_start) * 1000)
+            logger.error("llm_error", detail=f"round={rounds} err={exc}",
+                         duration_ms=elapsed_ms)
+            print(f"  [work] ERR round {rounds} FAILED after {elapsed_ms}ms: {exc}",
+                  flush=True)
+            stopped = "error"
+            break
         elapsed = round((clock() - round_start) * 1000)
+        slow_mark = " SLOW" if elapsed > 30000 else ""
         logger.info("llm_response",
                      detail=f"round={rounds} chars={len(result.text)}",
                      duration_ms=elapsed)
-        print(f"  [work] round {rounds}/{max_rounds}  {len(result.text)} chars  "
-              f"{elapsed}ms  findings_this_round={len(extract_findings(result.text, iteration))}",
-              flush=True)
+        n_found = len(extract_findings(result.text, iteration))
+        print(f"  [work] ok  round {rounds}/{max_rounds}  {len(result.text)} chars  "
+              f"{elapsed}ms{slow_mark}  findings={n_found}", flush=True)
         # B1: a work-path answer ending on a question is a stall signal.
         if result.ends_with_question():
             stalled = True
             stopped = "question_stall"
             logger.decision("question_stall", detail="model ended on a question")
-            print("  [work] ⚠ stall signal — model ended on a question", flush=True)
+            print("  [work] ! stall signal — model ended on a question", flush=True)
             break
         for finding in extract_findings(result.text, iteration):
             store.append_finding(finding)
             new_findings += 1
         if "DONE" in result.text:
             stopped = "done"
+            print("  [work] DONE signal received", flush=True)
             break
 
     # (5) EC3 validation between iterations.

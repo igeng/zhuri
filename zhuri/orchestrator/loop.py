@@ -214,6 +214,10 @@ def tick(
         store.touch_last_seen("orchestrator")
         logger = JsonlLogger(store.logs_dir, "orchestrator")
         progress = store.read_progress()
+        if progress and stall.is_terminal(progress):
+            print(f"  [orch] skip  task={task_dir.name}  status={progress.status}  "
+                  f"(terminal — nothing more to do)", flush=True)
+            continue
         iteration = (progress.iteration + 1) if progress else 1
         print(f"  [orch] tick  task={task_dir.name}  iteration={iteration}",
               flush=True)

@@ -80,12 +80,28 @@ def run_orchestrator(
     once: bool = False,
     sleep=time.sleep,
 ) -> int:
-    """Drive the orchestrator loop (B1: zero interaction on the run path)."""
+    """Drive the orchestrator loop (B1: zero interaction on the run path).
+
+    Stops when: (a) ``--once`` or ``max_iters`` reached, or (b) all discovered
+    tasks are in a terminal state (done / auto-stopped escalated).
+    """
+    from .orchestrator.stall import is_terminal
+
     iters = 0
     while True:
         loop.tick(base_dir, runner=runner)
         iters += 1
         if once or (max_iters is not None and iters >= max_iters):
             break
+
+        # Check if all tasks are terminal — if so, nothing left to do.
+        tasks = loop.discover_tasks(base_dir)
+        if tasks and all(
+            is_terminal(TaskStore(t).read_progress() or Progress.new(""))
+            for t in tasks
+        ):
+            print("  [zhuri] all tasks terminal — orchestrator stopping", flush=True)
+            break
+
         sleep(interval_seconds)
     return iters

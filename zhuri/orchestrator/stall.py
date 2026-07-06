@@ -8,6 +8,7 @@ from ..state.models import Progress
 PIVOT_THRESHOLD = 2
 ESCALATE_THRESHOLD = 4
 FRESH_DIRECTION_THRESHOLD = 3
+AUTO_STOP_THRESHOLD = 8  # escalate → keep trying → auto-stop after this many stalls
 
 
 @dataclass
@@ -94,3 +95,18 @@ def recompute(
 def needs_fresh_direction(progress: Progress) -> bool:
     """§7.1.2: regenerate a fresh direction before launch when stalling."""
     return progress.stale_count >= FRESH_DIRECTION_THRESHOLD
+
+
+def is_terminal(progress: Progress) -> bool:
+    """Return True when the orchestrator should stop launching this task.
+
+    - ``done`` → terminal (explicit completion).
+    - ``escalated`` with stale_count ≥ AUTO_STOP_THRESHOLD → task has been
+      escalated for several iterations with no improvement; stop to avoid
+      burning API credits on a task that cannot progress further.
+    """
+    if progress.status == "done":
+        return True
+    if progress.status == "escalated" and progress.stale_count >= AUTO_STOP_THRESHOLD:
+        return True
+    return False

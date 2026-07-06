@@ -36,16 +36,12 @@ def main(argv=None, *, provider_factory=None, runner=None, spawn=None) -> int:
         return run_repl(provider_factory=provider_factory, runner=runner,
                         working_dir=wd)
 
-    # Entry A: a bare prompt → launch REPL with the prompt auto-submitted.
-    # If --yes is passed, use the classic foreground runner (no interactive loop).
+    # Entry A: a bare prompt → execute immediately (B1-exempt spec confirm,
+    # then zero-interaction run with live monitor).  --yes skips the confirm.
+    # Use zhuri (no args) for the interactive REPL.
     if argv[0] not in SUBCOMMANDS and not argv[0].startswith("-"):
-        if "--yes" in argv or "-y" in argv:
-            return _entry_a(argv, provider_factory=provider_factory, runner=runner,
-                            spawn=spawn)
-        prompt = " ".join(argv)
-        from .repl import run_repl
-        return run_repl(provider_factory=provider_factory, runner=runner,
-                        initial_prompt=prompt)
+        return _entry_a(argv, provider_factory=provider_factory, runner=runner,
+                        spawn=spawn)
 
     parser = build_parser()
     args = parser.parse_args(argv)

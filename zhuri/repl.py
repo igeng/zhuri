@@ -20,51 +20,55 @@ from .providers.registry import Registry
 from .repl_core import Repl
 
 
+def _stdin_has_data(timeout: float = 0.15) -> bool:
+    """Return True if stdin has buffered data ready to read (e.g. pasted text).
+
+    Works on Unix ptys (Git Bash / MinTTY included) via ``select``, and on
+    native Windows consoles via ``msvcrt.kbhit``.
+    """
+    try:
+        import msvcrt as _msvcrt
+        return _msvcrt.kbhit()
+    except (ImportError, OSError):
+        pass
+    try:
+        import select as _select
+        return bool(_select.select([sys.stdin], [], [], timeout)[0])
+    except (ImportError, OSError, ValueError):
+        return False
+
+
 def _read_multiline(prompt: str = "❯ ") -> str:
     """Read a possibly multi-line input from the user.
 
-    After the first line, probes stdin for buffered lines (e.g. from a paste).
-    Accumulates all immediately-available lines into one prompt, joined by
-    newlines.  Stops when no more buffered data is available.
+    Reads stdin directly instead of ``input()`` so pasted multi-line text
+    (including blank lines between paragraphs) is accumulated correctly.
+    Stops when no more buffered data is immediately available — the user
+    can still press Enter on a blank line to submit a single-line empty
+    prompt.
     """
-    first = input(prompt)
-    if not first.strip():
-        return first
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
 
-    # Check for buffered (pasted) lines.
-    extra_lines: list[str] = []
-    try:
-        # Windows: use msvcrt to probe the console buffer.
-        import msvcrt as _msvcrt
-        while _msvcrt.kbhit():
-            raw = _msvcrt.getwche()
-            line = ""
-            while raw != "\n" and raw != "\r":
-                line += raw
-                if not _msvcrt.kbhit():
-                    break
-                raw = _msvcrt.getwche()
-            extra_lines.append(line)
-            # After \r, check for \n (CRLF).
-            if raw == "\r" and _msvcrt.kbhit():
-                nxt = _msvcrt.getwche()
-                if nxt != "\n":
-                    line += nxt
-    except (ImportError, OSError):
-        # Unix fallback: use select with a short timeout.
-        try:
-            import select as _select
-            while _select.select([sys.stdin], [], [], 0.05)[0]:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                extra_lines.append(line.rstrip("\n\r"))
-        except (ImportError, OSError):
-            pass
+    lines: list[str] = []
+    first = True
 
-    if extra_lines:
-        return first + "\n" + "\n".join(extra_lines)
-    return first
+    while True:
+        line = sys.stdin.readline()
+        if not line:  # EOF (Ctrl+D / Ctrl+Z)
+            break
+        stripped = line.rstrip("\n\r")
+        lines.append(stripped)
+        first = False
+        # If no more data in buffer, we're done reading this paste/input.
+        if not _stdin_has_data():
+            break
+
+    # User typed nothing (just pressed Enter).
+    if not lines:
+        return ""
+
+    return "\n".join(lines)
 
 
 def run_repl(*, provider_factory=None, runner=None, input_fn=None, out=print,

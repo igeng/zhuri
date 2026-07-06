@@ -46,9 +46,23 @@ def recompute(
         )
 
     metric_dropped = (
-        metric is not None and prev_metric is not None and metric < prev_metric
+        metric is not None
+        and prev_metric is not None
+        and metric < prev_metric
     )
-    is_stall = new_findings == 0 or metric_dropped
+    # A metric drop alone is not a stall if we still have new findings —
+    # diminishing returns are natural as easy findings are exhausted.
+    # Only flag a stall when findings are zero OR the metric drops sharply
+    # (>50%) while findings are very low (≤1).
+    significant_drop = (
+        metric_dropped
+        and prev_metric is not None
+        and metric is not None
+        and prev_metric > 0
+        and (metric / prev_metric) < 0.5
+        and new_findings <= 1
+    )
+    is_stall = new_findings == 0 or significant_drop
 
     if is_stall:
         stale = progress.stale_count + 1

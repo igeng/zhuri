@@ -18,10 +18,23 @@ def test_gain_resets_stale():
 
 
 def test_metric_drop_is_stall():
+    # Mild drop with productive findings (>1) → not a stall.
     p = Progress.new("t")
     p.last_metric = 10.0
     d = stall.recompute(p, new_findings=3, metric=4.0)
-    assert d.result == "stall" and d.stale_count == 1
+    assert d.result == "gain" and d.stale_count == 0
+
+    # Sharp drop (>50%) with at most 1 finding → stall.
+    p2 = Progress.new("t")
+    p2.last_metric = 10.0
+    d2 = stall.recompute(p2, new_findings=1, metric=4.0)
+    assert d2.result == "stall" and d2.stale_count == 1
+
+    # Zero findings always stalls regardless of metric.
+    p3 = Progress.new("t")
+    p3.last_metric = 10.0
+    d3 = stall.recompute(p3, new_findings=0, metric=0.0)
+    assert d3.result == "stall" and d3.stale_count == 1
 
 
 def test_pivot_at_two():

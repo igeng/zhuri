@@ -48,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     wk.add_argument("--direction", required=True)
     wk.add_argument("--max-rounds", type=int, default=15)
     wk.add_argument("--max-minutes", type=float, default=30.0)
+    wk.add_argument("--no-search", action="store_true",
+                    help="skip ArXiv + Semantic Scholar pre-search")
     s = sub.add_parser("status")
     s.add_argument("base_dir")
     s.add_argument("--watch", action="store_true")
@@ -117,7 +119,8 @@ def dispatch(args, *, provider_factory=None, runner=None) -> int:
         from .agents.work_agent import run_work
         registry = reg_factory(make_config())
         run_work(Path(args.task_dir), args.direction, registry,
-                 max_rounds=args.max_rounds, max_minutes=args.max_minutes)
+                 max_rounds=args.max_rounds, max_minutes=args.max_minutes,
+                 do_search=not getattr(args, "no_search", False))
         return 0
 
     if cmd == "synthesize":

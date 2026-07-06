@@ -6,6 +6,7 @@ Command dispatch and argument parsing live in :mod:`zhuri.cli_dispatch`.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -70,6 +71,8 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
     p.add_argument("--interval", type=float, default=5.0,
                    help="seconds between orchestrator ticks (default: 5s; cron mode: 2h)")
     p.add_argument("--once", action="store_true")
+    p.add_argument("--no-search", action="store_true",
+                   help="skip ArXiv + Semantic Scholar paper search before each iteration")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="enable real-time log output to stderr")
     args = p.parse_args(argv)
@@ -106,6 +109,8 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
         spawn(cmd, detach=True)
         print(f"launched (detached): {task_dir}")
         return 0
+    if getattr(args, "no_search", False):
+        os.environ["ZHURI_NO_SEARCH"] = "1"
     _run_with_monitor(base, runner=runner, max_iters=args.max_iters,
                       once=args.once, interval_seconds=args.interval)
     if args.synthesize:

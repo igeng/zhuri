@@ -52,10 +52,11 @@ def subprocess_runner(task_dir: Path, direction: str) -> RunOutcome:
     short_dir = f"{direction[:60]}..." if len(direction) > 60 else direction
     print(f"  [orch] > spawning work agent for {task_dir.name}  "
           f"direction={short_dir!r}", flush=True)
-    result = proc.run(
-        [sys.executable, "-m", "zhuri", "work", str(task_dir), "--direction", direction],
-        timeout=60 * 35,
-    )
+    cmd = [sys.executable, "-m", "zhuri", "work", str(task_dir), "--direction", direction]
+    # Auto-disable search in test environments (no network, faster).
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("ZHURI_NO_SEARCH") == "1":
+        cmd.append("--no-search")
+    result = proc.run(cmd, timeout=60 * 35)
     after = len(store.read_findings())
     new = after - before
     print(f"  [orch] ok  work agent done  rc={result.returncode}  "

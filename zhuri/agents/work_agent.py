@@ -3,15 +3,17 @@
 Contract (§6.1):
 1. write ``last_seen`` first (B3);
 2. load **curated** state only (no conversation history — B4);
-3. build the prompt via :mod:`zhuri.agents.prompt`;
-4. drive a bounded loop (cap 15 rounds OR 30 minutes);
-5. run validation between iterations (EC3);
-6. append findings + an iteration_log row + update progress atomically;
-7. exit (the process is disposable).
+3. (optional) pre-search ArXiv + Semantic Scholar for real papers;
+4. build the prompt via :mod:`zhuri.agents.prompt`;
+5. drive a bounded loop (cap 15 rounds OR 30 minutes);
+6. run validation between iterations (EC3);
+7. append findings + an iteration_log row + update progress atomically;
+8. exit (the process is disposable).
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -20,6 +22,7 @@ from ..logging.jsonl import JsonlLogger
 from ..providers.registry import Registry
 from ..state.models import Finding, IterationLog
 from ..state.store import TaskStore
+from ..tools.search import arxiv_search, format_for_prompt, search_all
 from .prompt import build_prompt
 
 Clock = Callable[[], float]
@@ -39,6 +42,22 @@ class WorkResult:
 def _default_validator(store: TaskStore) -> bool:
     """Default EC3 validation: state files are well-formed and present."""
     return store.read_progress() is not None
+
+
+def _search_query(direction: str, spec: str) -> str:
+    """Derive a concise search query from the direction + task spec."""
+    # Take first 2 sentences of spec + direction, cap at 300 chars for API.
+    spec_first = spec.split(".")[:2]
+    base = " ".join(s.strip() for s in spec_first if s.strip())
+    combined = f"{base} {direction}"
+    # Remove markdown headers and common noise words.
+    for noise in ("#", "【", "】", "撰写", "一份", "关于"):
+        combined = combined.replace(noise, "")
+    return combined.strip()[:300]
+
+
+def _merge_blocks(*blocks: str) -> str:
+    return "\n\n".join(b for b in blocks if b.strip())
 
 
 def extract_findings(text: str, iteration: int) -> list[Finding]:
@@ -70,6 +89,7 @@ async def run_work_async(
     max_minutes: float = 30.0,
     clock: Clock = time.monotonic,
     validator: Validator | None = None,
+    do_search: bool = True,
 ) -> WorkResult:
     store = TaskStore(task_dir)
     store.ensure_dirs()
@@ -92,6 +112,29 @@ async def run_work_async(
         else ""
     )
 
+    # (2b) Pre-search: fetch real papers from ArXiv + Semantic Scholar so the
+    # LLM has up-to-date references instead of relying purely on training data.
+    # Can be disabled via --no-search flag, ZHURI_NO_SEARCH=1 env var.
+    # Automatically skipped during test runs or offline mode.
+    _in_test = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    _no_net = os.environ.get("ZHURI_NO_SEARCH") == "1"
+    if do_search and (_no_net or _in_test):
+        do_search = False
+    search_block = ""
+    if do_search:
+        try:
+            # Derive a concise search query from the direction + spec.
+            query = _search_query(direction, spec)
+            logger.info("search_start", detail=f"query={query!r}")
+            print(f"  [search] querying ArXiv + Semantic Scholar: {query[:120]}...", flush=True)
+            papers = search_all(query, max_results=15, timeout=10.0)
+            search_block = format_for_prompt(papers)
+            logger.info("search_done", detail=f"found={len(papers)}")
+            print(f"  [search] found {len(papers)} papers", flush=True)
+        except Exception as exc:
+            logger.warn("search_error", detail=str(exc)[:200])
+            print(f"  [search] search skipped: {exc}", flush=True)
+
     # (3) assemble prompt (must contain all five mandatory fields).
     prompt = build_prompt(
         background=spec[:2000],
@@ -100,7 +143,7 @@ async def run_work_async(
         caps=f"<= {max_rounds} rounds, <= {max_minutes} minutes, files <= 300 lines",
         completion_criteria="Emit 'FINDING: <claim> :: <evidence>' lines; say DONE when complete.",
         directions_tried=tried,
-        extra=findings_block,
+        extra=_merge_blocks(findings_block, search_block),
     )
 
     provider, eff = registry.provider_for("work")

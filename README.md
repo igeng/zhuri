@@ -12,8 +12,8 @@ processes** and all inter-agent communication happens **only through the
 filesystem**.
 
 See [`SPEC.md`](./SPEC.md) for the authoritative specification.
-See [`TUTORIAL.md`](./TUTORIAL.md) for the complete user guide (使用手册).
-中文文档请参阅 [`README_zh.md`](./README_zh.md)。
+See [`TUTORIAL.md`](./TUTORIAL.md) for the complete user guide.
+中文文档请参阅 [`README_zh.md`](./README_zh.md) 和 [`TUTORIAL_zh.md`](./TUTORIAL_zh.md)。
 
 ---
 
@@ -46,17 +46,26 @@ research, analysis, or generation steps is a good fit:
 mode** is best for complex, open-ended tasks that benefit from multiple
 perspectives and structural diversity.
 
-### Live monitoring & logging
+### Live monitoring & auto-stop
 
-Entry A (`zhuri "prompt" --yes`) now shows **real-time progress** — iteration
-count, findings, stall signals, and structural pivots — without requiring user
-interaction (B1-safe). Add `-v` / `--verbose` for full log output to stderr.
+Entry A (`zhuri "prompt" --yes`) shows **real-time progress** — iteration count,
+findings, stall signals, structural pivots — without requiring user interaction
+(B1-safe). The orchestrator **auto-stops** escalated tasks that cannot improve
+to avoid wasting API credits.
 
 ```bash
-zhuri "prompt" --yes -v     # full detail: LLM calls, timings, token usage
-zhuri "prompt" --yes         # one-line-per-iteration summary
-zhuri "prompt" --yes --detach # run in background (no monitor)
+zhuri "prompt" --yes -v         # full detail: LLM calls, timings, token usage
+zhuri "prompt" --yes             # one-line-per-iteration summary
+zhuri "prompt" --yes --detach    # run in background (no monitor)
+zhuri "prompt" --yes --no-search # skip ArXiv + Semantic Scholar search
 ```
+
+### Academic paper search
+
+Every work agent iteration pre-searches **ArXiv** and **Semantic Scholar** for
+real, verifiable papers (both APIs are free, no auth required). Results are
+injected into the LLM prompt so citations are based on actual publications.
+Search failures are non-fatal. Disable with `--no-search`.
 
 ### Built-in task packs
 

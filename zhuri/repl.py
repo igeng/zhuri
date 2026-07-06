@@ -17,7 +17,7 @@ from .repl_core import Repl
 
 def run_repl(*, provider_factory=None, runner=None, input_fn=None, out=print,
              registry=None, working_dir=None,
-             show_banner=True) -> int:  # pragma: no cover - interactive loop
+             show_banner=True, initial_prompt: str = "") -> int:
     """Start the interactive REPL (Entry B).
 
     Parameters
@@ -26,6 +26,9 @@ def run_repl(*, provider_factory=None, runner=None, input_fn=None, out=print,
         The directory to use as the base for task workspaces. Defaults to CWD.
     show_banner : bool
         Whether to show the welcome banner (disabled in tests).
+    initial_prompt : str
+        If non-empty, the REPL immediately processes this as a task prompt
+        (as if the user typed it), then continues the interactive loop.
     """
     if working_dir is not None:
         os.chdir(working_dir)
@@ -50,6 +53,12 @@ def run_repl(*, provider_factory=None, runner=None, input_fn=None, out=print,
         out("zhuri REPL — type a task, or use slash commands; /quit to exit")
 
     repl = Repl(registry=registry, runner=runner, out=out)
+
+    # Auto-submit initial prompt if provided (Entry A REPL integration).
+    if initial_prompt.strip():
+        out(f"\n❯ {initial_prompt[:120]}{'...' if len(initial_prompt) > 120 else ''}")
+        repl.handle(initial_prompt.strip())
+
     input_fn = input_fn or (lambda: input("❯ "))
     while True:
         try:

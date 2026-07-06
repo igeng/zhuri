@@ -36,10 +36,16 @@ def main(argv=None, *, provider_factory=None, runner=None, spawn=None) -> int:
         return run_repl(provider_factory=provider_factory, runner=runner,
                         working_dir=wd)
 
-    # Entry A: a bare prompt (first token not a subcommand and not a flag).
+    # Entry A: a bare prompt → launch REPL with the prompt auto-submitted.
+    # If --yes is passed, use the classic foreground runner (no interactive loop).
     if argv[0] not in SUBCOMMANDS and not argv[0].startswith("-"):
-        return _entry_a(argv, provider_factory=provider_factory, runner=runner,
-                        spawn=spawn)
+        if "--yes" in argv or "-y" in argv:
+            return _entry_a(argv, provider_factory=provider_factory, runner=runner,
+                            spawn=spawn)
+        prompt = " ".join(argv)
+        from .repl import run_repl
+        return run_repl(provider_factory=provider_factory, runner=runner,
+                        initial_prompt=prompt)
 
     parser = build_parser()
     args = parser.parse_args(argv)

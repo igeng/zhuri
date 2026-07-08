@@ -148,10 +148,24 @@ zhuri has 5 launch methods. **The end goal is always the synthesized document `d
 | `--direct` | Single LLM call, no iterations |
 | `--detach` | Background execution, terminal returns immediately |
 | `--synthesize` | Auto-merge all findings into deliverable.md after iterations |
-| `--max-iters N` | Maximum orchestrator ticks |
+| `--max-iters N` | Max orchestrator ticks (default: 20; 0 = unlimited) |
 | `--interval N` | Seconds between ticks (default: 5s foreground, 2h cron) |
 | `--no-search` | Skip ArXiv + Semantic Scholar pre-search |
 | `-v` / `--verbose` | Full LLM call logs to stderr |
+
+### Runtime Thresholds
+
+zhuri has sane defaults to prevent infinite runs while allowing deep exploration:
+
+| Threshold | Value | What Happens |
+|-----------|-------|-------------|
+| Pivot | stale ≥ 2 | Force structural axis change |
+| Escalate | stale ≥ 4 | Flag for human attention |
+| Auto-stop | stale ≥ 8 | Stop task (avoid burning API credits) |
+| Entry A default max ticks | 20 | Orchestrator stops after 20 ticks (override with `--max-iters 0`) |
+| Work agent cap | 15 rounds / 30 min | Per work agent session |
+
+View in REPL: `/limits`. Adjust in REPL: `/set-iters N`.
 
 ### Output Location
 
@@ -250,6 +264,8 @@ lines; all content is captured into a single prompt.
 | `/config` | Show provider configuration |
 | `/config verbose on\|off` | Toggle verbose logging |
 | `/help` | Show all commands |
+| `/set-iters N` | Set foreground max iterations (0=unlimited) |
+| `/limits` | Show all threshold values |
 | `/quit` | Exit REPL |
 
 ---

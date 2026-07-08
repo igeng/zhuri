@@ -69,7 +69,8 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
                    help="skip iterations; produce result in one LLM call")
     p.add_argument("--synthesize", action="store_true",
                    help="produce a final document after iterations complete")
-    p.add_argument("--max-iters", type=int, default=None)
+    p.add_argument("--max-iters", type=int, default=20,
+                   help="max orchestrator ticks (default: 20; 0 = unlimited)")
     p.add_argument("--interval", type=float, default=5.0,
                    help="seconds between orchestrator ticks (default: 5s; cron mode: 2h)")
     p.add_argument("--once", action="store_true")
@@ -113,7 +114,9 @@ def _entry_a(argv, *, provider_factory=None, runner=None, spawn=None) -> int:
         return 0
     if getattr(args, "no_search", False):
         os.environ["ZHURI_NO_SEARCH"] = "1"
-    _run_with_monitor(base, runner=runner, max_iters=args.max_iters,
+    # max_iters=0 means "unlimited" (convert to None for run_orchestrator).
+    max_iters = None if args.max_iters == 0 else args.max_iters
+    _run_with_monitor(base, runner=runner, max_iters=max_iters,
                       once=args.once, interval_seconds=args.interval)
     if args.synthesize:
         from .agents.synthesize import synthesize_document

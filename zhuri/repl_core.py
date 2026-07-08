@@ -18,7 +18,7 @@ from .state.store import TaskStore
 
 SLASH_COMMANDS = {
     "status", "logs", "pause", "resume", "pivot", "stop", "spec", "new",
-    "config", "quit", "synthesize", "help",
+    "config", "quit", "synthesize", "help", "set-iters", "limits",
 }
 
 # How many orchestrator iterations a foreground REPL task runs before yielding
@@ -57,6 +57,7 @@ class Repl:
         self.out = out
         self.tasks: list[Path] = []
         self.paused = False
+        self._fg_max_iters = FOREGROUND_MAX_ITERS
 
     def handle(self, line: str) -> bool:
         """Process one line. Returns False when the REPL should exit."""
@@ -105,6 +106,12 @@ class Repl:
         if name == "synthesize":
             self._synthesize(cmd.arg)
             return True
+        if name == "set-iters":
+            self._set_iters(cmd.arg)
+            return True
+        if name == "limits":
+            self._show_limits()
+            return True
         if name == "help":
             self._help()
             return True
@@ -125,7 +132,7 @@ class Repl:
     def _run_foreground(self, task_dir: Path, max_iters: int | None = None) -> None:
         """Drive the orchestrator in the foreground, streaming per-iteration
         progress to ``out`` (B1-safe: no interactive blocking on this path)."""
-        max_iters = FOREGROUND_MAX_ITERS if max_iters is None else max_iters
+        max_iters = self._fg_max_iters if max_iters is None else max_iters
         runner = self.runner or loop.subprocess_runner
         self.out("running in foreground (B1: zero-interaction)…")
         store = TaskStore(task_dir)
@@ -223,8 +230,39 @@ class Repl:
         self.out("  /synthesize [task]   synthesize findings into a document")
         self.out("  /config              show provider config")
         self.out("  /config verbose on|off  toggle verbose logging")
+        self.out("  /set-iters N         set foreground iterations (0=unlimited)")
+        self.out("  /limits              show all threshold values")
         self.out("  /help                show this help message")
         self.out("  /quit                exit zhuri REPL")
+
+    def _set_iters(self, arg: str) -> None:
+        """Set the foreground max iterations (0 = unlimited)."""
+        try:
+            n = int(arg.strip()) if arg.strip() else -1
+        except ValueError:
+            self.out(f"invalid number: {arg!r}")
+            return
+        if n < 0:
+            self.out(f"current foreground max iters: {self._fg_max_iters}")
+            return
+        self._fg_max_iters = n
+        label = "unlimited" if n == 0 else str(n)
+        self.out(f"foreground max iters set to: {label}")
+
+    def _show_limits(self) -> None:
+        """Display all runtime thresholds."""
+        from .orchestrator.stall import (
+            PIVOT_THRESHOLD, ESCALATE_THRESHOLD, AUTO_STOP_THRESHOLD,
+            FRESH_DIRECTION_THRESHOLD,
+        )
+        self.out("Runtime thresholds:")
+        self.out(f"  pivot after stale >= {PIVOT_THRESHOLD}")
+        self.out(f"  escalate after stale >= {ESCALATE_THRESHOLD}")
+        self.out(f"  auto-stop after stale >= {AUTO_STOP_THRESHOLD}")
+        self.out(f"  fresh direction after stale >= {FRESH_DIRECTION_THRESHOLD}")
+        self.out(f"  REPL foreground max iters: {self._fg_max_iters}")
+        self.out(f"  work agent cap: 15 rounds / 30 minutes")
+        self.out("  EC1 file limit: 300 lines")
 
     def _synthesize(self, target: str) -> None:
         """Run synthesize on a task directory (by name or path)."""

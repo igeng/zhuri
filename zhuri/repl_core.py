@@ -24,7 +24,7 @@ SLASH_COMMANDS = {
 # How many orchestrator iterations a foreground REPL task runs before yielding
 # the prompt back. Bounded so the window is never held indefinitely (B1-safe:
 # no interactive blocking on the run path).
-FOREGROUND_MAX_ITERS = 3
+FOREGROUND_MAX_ITERS = 7
 
 
 @dataclass
@@ -155,11 +155,11 @@ class Repl:
         prog = store.read_progress()
         iteration = prog.iteration if prog else 0
         total = len(store.read_findings())
-        self.out(f"done: {iteration} iterations, {total} findings total")
+        self.out(f"foreground cycle done: {iteration} iterations, {total} findings total")
         self.out("artifacts:")
         self.out(f"  state : {store.state_dir}{os.sep}")
         self.out(f"  logs  : {store.logs_dir}{os.sep}")
-        self.out('tip: /status · /logs work · /new "<next task>"')
+        self.out("tip: /status · /logs work · /synthesize · /new to continue")
 
     def _status(self) -> None:
         for t in self.tasks:

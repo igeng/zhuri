@@ -148,7 +148,7 @@ zhuri has 5 launch methods. **The end goal is always the synthesized document `d
 | `--direct` | Single LLM call, no iterations |
 | `--detach` | Background execution, terminal returns immediately |
 | `--synthesize` | Auto-merge all findings into deliverable.md after iterations |
-| `--max-iters N` | Max orchestrator ticks (default: 20; 0 = unlimited) |
+| `--max-iters N` | Max orchestrator ticks (default: 30; 0 = unlimited) |
 | `--interval N` | Seconds between ticks (default: 5s foreground, 2h cron) |
 | `--no-search` | Skip ArXiv + Semantic Scholar pre-search |
 | `-v` / `--verbose` | Full LLM call logs to stderr |
@@ -162,7 +162,7 @@ zhuri has sane defaults to prevent infinite runs while allowing deep exploration
 | Pivot | stale ≥ 2 | Force structural axis change |
 | Escalate | stale ≥ 4 | Flag for human attention |
 | Auto-stop | stale ≥ 8 | Stop task (avoid burning API credits) |
-| Entry A default max ticks | 20 | Orchestrator stops after 20 ticks (override with `--max-iters 0`) |
+| Entry A default max ticks | 30 | Orchestrator stops after 30 ticks (override with `--max-iters 0`) |
 | Work agent cap | 15 rounds / 30 min | Per work agent session |
 
 View in REPL: `/limits`. Adjust in REPL: `/set-iters N`.

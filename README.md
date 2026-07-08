@@ -55,7 +55,7 @@ to avoid wasting API credits.
 
 ```bash
 zhuri "prompt" --yes -v         # full detail: LLM calls, timings, token usage
-zhuri "prompt" --yes             # one-line-per-iteration summary (max 20 ticks)
+zhuri "prompt" --yes             # one-line-per-iteration summary (max 30 ticks)
 zhuri "prompt" --yes --max-iters 0  # unlimited ticks (until auto-stop)
 zhuri "prompt" --yes --detach    # run in background (no monitor)
 zhuri "prompt" --yes --no-search # skip ArXiv + Semantic Scholar search

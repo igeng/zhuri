@@ -227,7 +227,7 @@ zhuri 共有 5 种启动方式。**最终目标都是拿到合并后的综述文
 | `--yes` | 跳过确认，直接开始（零交互） |
 | `--detach` | 后台运行，终端立即返回 |
 | `--synthesize` | 所有迭代完成后，自动合并 findings 为最终文档 |
-| `--max-iters N` | 最大编排器 tick 数（默认 20；0 = 无限制） |
+| `--max-iters N` | 最大编排器 tick 数（默认 30；0 = 无限制） |
 | `--interval N` | 编排器 tick 间隔秒数（默认 5s） |
 | `-v` / `--verbose` | 输出完整 LLM 调用日志 |
 
@@ -240,7 +240,7 @@ zhuri 有合理的默认值防止无限运行，同时允许深度探索：
 | 转向 (pivot) | stale ≥ 2 | 强制切换结构轴 |
 | 升级 (escalate) | stale ≥ 4 | 标记需人工关注 |
 | 自动停止 | stale ≥ 8 | 停止任务，避免浪费 API |
-| Entry A 默认最大 tick | 20 | 编排器 20 轮后自动停（`--max-iters 0` 取消限制） |
+| Entry A 默认最大 tick | 30 | 编排器 30 轮后自动停（`--max-iters 0` 取消限制） |
 | Work agent 上限 | 15 轮 / 30 分钟 | 单次工作会话 |
 
 在 REPL 中查看：`/limits`。调整：`/set-iters N`。

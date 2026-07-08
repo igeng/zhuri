@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zhuri"
-version = "0.1.0"
-description = "zhuri (逐日) — framework-free multi-agent orchestrator implementing the Deli_AutoResearch protocol"
+version = "1.0.0"
+description = "zhuri (逐日) — framework-free multi-agent orchestrator for long-horizon autonomous research tasks. Zero-interaction, file-based communication, 3-layer heartbeat watchdog."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

@@ -5,10 +5,11 @@ supports streaming, optional tool/function calling, and per-call model selection
 """
 from __future__ import annotations
 
+import asyncio
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncIterator
-
 
 class ProviderError(Exception):
     """Generic provider failure → exit code 1."""
@@ -70,3 +71,41 @@ class LLMProvider(ABC):
         """Yield text deltas for TTY streaming."""
         raise NotImplementedError
         yield  # pragma: no cover
+
+
+# ---------------------------------------------------------------------------
+# Retry policy
+# ---------------------------------------------------------------------------
+
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1.0  # seconds: 1s → 2s → 4s
+
+
+class NetworkError(ProviderError):
+    """Transient network failure — retryable."""
+
+
+async def retry_call(fn, *, max_retries: int = MAX_RETRIES,
+                     base_delay: float = RETRY_BASE_DELAY,
+                     on_retry=None):
+    """Call async *fn* with exponential-backoff retry on network errors.
+
+    Only ``NetworkError`` and ``httpx.HTTPError`` trigger a retry;
+    ``AuthError`` is re-raised immediately (no point retrying bad credentials).
+    """
+    import httpx as _httpx
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await fn()
+        except AuthError:
+            raise
+        except (_httpx.HTTPError, NetworkError, asyncio.TimeoutError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                if on_retry:
+                    on_retry(attempt + 1, delay, exc)
+                await asyncio.sleep(delay)
+    raise ProviderError(f"request failed after {max_retries + 1} attempts: {last_exc}")

@@ -10,7 +10,7 @@ from typing import AsyncIterator
 
 import httpx
 
-from .base import AuthError, LLMProvider, ProviderError, ProviderResult
+from .base import AuthError, LLMProvider, NetworkError, ProviderError, ProviderResult, retry_call
 
 
 class OpenAICompatProvider(LLMProvider):
@@ -57,48 +57,60 @@ class OpenAICompatProvider(LLMProvider):
         body = self._payload(system=system, messages=messages, model=model,
                              max_tokens=max_tokens, temperature=temperature,
                              tools=tools, stream=False)
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=self._headers(),
-                    json=body,
-                )
-        except httpx.HTTPError as exc:  # pragma: no cover - network
-            raise ProviderError(f"request failed: {exc}") from exc
-        self._raise_for_status(resp)
-        data = resp.json()
-        choice = data["choices"][0]
-        msg = choice.get("message", {})
-        return ProviderResult(
-            text=msg.get("content") or "",
-            model=data.get("model", model),
-            finish_reason=choice.get("finish_reason", "stop"),
-            tool_calls=msg.get("tool_calls", []) or [],
-            usage=data.get("usage", {}) or {},
-        )
+
+        async def _call():
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=self._headers(),
+                        json=body,
+                    )
+            except httpx.HTTPError as exc:
+                raise NetworkError(f"request failed: {exc}") from exc
+            self._raise_for_status(resp)
+            data = resp.json()
+            choice = data["choices"][0]
+            msg = choice.get("message", {})
+            return ProviderResult(
+                text=msg.get("content") or "",
+                model=data.get("model", model),
+                finish_reason=choice.get("finish_reason", "stop"),
+                tool_calls=msg.get("tool_calls", []) or [],
+                usage=data.get("usage", {}) or {},
+            )
+
+        return await retry_call(_call)
 
     async def stream(self, *, system, messages, model, max_tokens=1024,
                      temperature=0.7, tools=None) -> AsyncIterator[str]:
         body = self._payload(system=system, messages=messages, model=model,
                              max_tokens=max_tokens, temperature=temperature,
                              tools=tools, stream=True)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST", f"{self.base_url}/chat/completions",
-                headers=self._headers(), json=body,
-            ) as resp:
-                self._raise_for_status(resp)
-                async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    chunk = line[len("data:"):].strip()
-                    if chunk == "[DONE]":
-                        break
-                    try:
-                        payload = json.loads(chunk)
-                    except json.JSONDecodeError:  # pragma: no cover
-                        continue
-                    delta = payload["choices"][0].get("delta", {})
-                    if delta.get("content"):
-                        yield delta["content"]
+
+        async def _stream_call():
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream(
+                    "POST", f"{self.base_url}/chat/completions",
+                    headers=self._headers(), json=body,
+                ) as resp:
+                    self._raise_for_status(resp)
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        chunk = line[len("data:"):].strip()
+                        if chunk == "[DONE]":
+                            break
+                        try:
+                            payload = json.loads(chunk)
+                        except json.JSONDecodeError:  # pragma: no cover
+                            continue
+                        delta = payload["choices"][0].get("delta", {})
+                        if delta.get("content"):
+                            yield delta["content"]
+
+        # Stream retry: collect chunks, replay if needed.
+        chunks: list[str] = []
+        async for chunk in _stream_call():
+            chunks.append(chunk)
+            yield chunk
